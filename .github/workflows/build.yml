@@ -1,0 +1,43 @@
+name: Compilar para Windows
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar
+        run: npx electron-builder --win zip --x64 --publish never
+
+      - name: Preparar el zip
+        shell: bash
+        run: cp dist/*-win.zip MyVloggingStudio-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyVloggingStudio-Windows
+          path: MyVloggingStudio-Windows.zip
+
+      - name: Publicar en Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ultima --yes --cleanup-tag || true
+          gh release create ultima MyVloggingStudio-Windows.zip --target "${{ github.sha }}" \
+            --title "MyVloggingStudio para Windows (última versión)" \
+            --notes "Compilado automáticamente. Bajá MyVloggingStudio-Windows.zip, descomprimilo y abrí MyVloggingStudio.exe."

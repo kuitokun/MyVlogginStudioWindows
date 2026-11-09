@@ -1,0 +1,32 @@
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+contextBridge.exposeInMainWorld('desk', {
+  probe: p => ipcRenderer.invoke('probe', p),
+  proxy: (p, kind, dur) => ipcRenderer.invoke('proxy', p, kind, dur),
+  onProxyProgress: fn => ipcRenderer.on('proxy-progress', (_e, file, pct) => fn(file, pct)),
+  proxyCancel: p => ipcRenderer.invoke('proxy-cancel', p),
+  readerOpen: (id, o) => ipcRenderer.invoke('reader-open', id, o),
+  readerNext: id => ipcRenderer.invoke('reader-next', id),
+  readerClose: id => ipcRenderer.invoke('reader-close', id),
+  grayOpen: (id, o) => ipcRenderer.invoke('gray-open', id, o),
+  grayNext: id => ipcRenderer.invoke('gray-next', id),
+  grayClose: id => ipcRenderer.invoke('gray-close', id),
+  freezeFrame: (p, t) => ipcRenderer.invoke('freeze-frame', p, t),
+  waveform: (p, perSec) => ipcRenderer.invoke('waveform', p, perSec),
+  displayCount: () => ipcRenderer.invoke('display-count'),
+  openFiles: () => ipcRenderer.invoke('open-files'),
+  pathFor: file => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
+  saveVideoDialog: name => ipcRenderer.invoke('save-video-dialog', name),
+  saveProject: (json, current, name) => ipcRenderer.invoke('save-project', json, current, name),
+  openProject: () => ipcRenderer.invoke('open-project'),
+  exists: p => ipcRenderer.invoke('exists', p),
+  reveal: p => ipcRenderer.invoke('reveal', p),
+  confirmDiscard: () => ipcRenderer.invoke('confirm-discard'),
+  onWantClose: fn => ipcRenderer.on('want-close', fn),
+  closeOk: () => ipcRenderer.send('close-ok'),
+  exportStart: o => ipcRenderer.invoke('export-start', o),
+  exportFrame: buf => ipcRenderer.invoke('export-frame', buf),
+  exportEnd: () => ipcRenderer.invoke('export-end'),
+  exportCancel: () => ipcRenderer.invoke('export-cancel'),
+  platform: process.platform
+});
