@@ -1534,29 +1534,38 @@ $('#expReveal').addEventListener('click',()=>{if(lastOut)desk.reveal(lastOut)});
 
 /* ---------- project files ---------- */
 let projPath=null,dirty=false;
-function markDirty(){dirty=true;updTitle()}
+function markDirty(){dirty=true;updTitle();autosaveSoon()}
+// automatic copy of the project a moment after each change (and once a minute while there are changes)
+let asT=0;
+function autosaveSoon(){clearTimeout(asT);asT=setTimeout(autosaveNow,2500)}
+function autosaveNow(){if(!dirty||S.demo)return;try{const d=JSON.parse(projJSON());d.projPath=projPath;desk.autosaveWrite(JSON.stringify(d))}catch(e){}}
+setInterval(()=>{if(dirty&&!S.exporting)autosaveNow()},60000);
 function updTitle(){document.title=(dirty?'• ':'')+($('#projName').value||'Mi video')+' — MyVloggingStudio'}
 function projJSON(){
   const used=new Set([...S.proj.video,...S.proj.audio].map(c=>c.mediaId)),media=[];
   for(const m of S.media.values()){if(m.kind==='color'){if(used.has(m.id))media.push({id:m.id,kind:'color',name:m.name,colors:m.colors})}else media.push({id:m.id,kind:m.kind,name:m.name,path:m.path,...(m.fromVideo?{fromVideo:true}:{})})}
   return JSON.stringify({app:'tijera',version:1,name:$('#projName').value,proj:S.proj,media},null,1);
 }
-async function saveProject(as){const p=await desk.saveProject(projJSON(),as?null:projPath,($('#projName').value||'Mi video').replace(/[\\/:*?"<>|]/g,''));if(!p)return false;projPath=p;dirty=false;updTitle();toast('Proyecto guardado');return true}
-async function askDiscard(){if(!dirty)return true;const a=await desk.confirmDiscard();if(a==='cancel')return false;if(a==='save')return await saveProject();return true}
+async function saveProject(as){const p=await desk.saveProject(projJSON(),as?null:projPath,($('#projName').value||'Mi video').replace(/[\\/:*?"<>|]/g,''));if(!p)return false;projPath=p;dirty=false;updTitle();clearTimeout(asT);desk.autosaveClear();toast('Proyecto guardado');return true}
+async function askDiscard(){if(!dirty)return true;const a=await desk.confirmDiscard();if(a==='cancel')return false;if(a==='save')return await saveProject();clearTimeout(asT);dirty=false;await desk.autosaveClear();return true}
 async function openProject(){
   if(!(await askDiscard()))return;
   const r=await desk.openProject();if(!r)return;
   let d;try{d=JSON.parse(r.data);if(d.app!=='tijera')throw 0}catch(e){toast('Ese archivo no es un proyecto de MyVloggingStudio');return}
+  await loadProjectData(d,r.path);
+}
+async function loadProjectData(d,path,recovered){
   setPlaying(false);for(const m of S.media.values())if(m.el){m.el.pause();m.el.remove()}
   S.media.clear();bgCache.clear();
-  S.proj=d.proj;migrateStarts();S.undo=[];S.redo=[];S.sel=null;S.time=0;S.demo=false;projPath=r.path;$('#projName').value=d.name||'Mi video';
+  S.proj=d.proj;migrateStarts();S.undo=[];S.redo=[];S.sel=null;S.time=0;S.demo=false;projPath=path;$('#projName').value=d.name||'Mi video';
   for(const x of d.media||[])if(x.kind==='color')S.media.set(x.id,{id:x.id,kind:'color',name:x.name,colors:x.colors,duration:Infinity});
   applyAspect();renderLib();renderTimeline();renderInsp();updUndo();
   const missing=[];
   const files=(d.media||[]).filter(x=>x.kind!=='color');for(const x of files)pending.set(x.path,{name:x.name,stage:'queue'});showMediaTab();renderLib();
   for(const x of files){if(!(await desk.exists(x.path))){pending.delete(x.path);missing.push(x.name);renderLib();continue}try{const m=await importPath(x.path,x.id,x.fromVideo?'audio':undefined);if(x.fromVideo)m.name=x.name;S.media.set(m.id,m)}catch(e){missing.push(x.name)}pending.delete(x.path);renderLib();renderTimeline();renderInsp()}
-  dirty=false;updTitle();
+  dirty=!!recovered;updTitle();
   if(missing.length)toast('No se encontraron estos archivos: '+missing.join(', '));
+  else if(recovered)toast('Proyecto recuperado. Guardalo con Ctrl+S.');
 }
 $('#saveBtn').addEventListener('click',()=>saveProject(false));
 $('#openBtn').addEventListener('click',openProject);
@@ -1569,6 +1578,8 @@ seed();updMagnet();updTitle();applyAspect();
 (()=>{let l=null;try{l=JSON.parse(localStorage.getItem('tijera-layout'))}catch(e){}applyLayout(l&&typeof l.lib==='number'?l:{...LAYOUTS.edit},false)})();setPlaying(false);renderLib();renderTimeline();renderInsp();updUndo();
 if(document.fonts)Promise.all(FONTS.map(f=>document.fonts.load(`400 40px "${f}"`))).catch(()=>{});
 requestAnimationFrame(loop);
+// offer the automatic copy if the last session ended without saving (closed by an error, power cut…)
+(async()=>{const data=await desk.autosaveCheck(/recuperar=1/.test(location.search));if(!data)return;try{const d=JSON.parse(data);await loadProjectData(d,d.projPath||null,true);autosaveNow()}catch(e){console.error(e)}})();
 })();
 </script>
 </body>

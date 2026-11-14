@@ -56,6 +56,15 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false }
   });
   win.loadURL('app://local/index.html');
+  // if the editor page crashes (for example, out of memory), stop FFmpeg, note why and reopen it;
+  // the page then offers the automatic copy of the project
+  win.webContents.on('render-process-gone', (_e, d) => {
+    logCrash('render-process-gone ' + JSON.stringify(d));
+    killChildren();
+    if (d.reason === 'clean-exit') return;
+    setTimeout(() => { try { if (win && !win.isDestroyed()) win.loadURL('app://local/index.html?recuperar=1'); } catch {} }, 800);
+  });
+  win.webContents.on('unresponsive', () => logCrash('unresponsive'));
   // external preview window (second monitor)
   const extDisplay = () => { const cur = screen.getDisplayMatching(win.getBounds()); return screen.getAllDisplays().find(d => d.id !== cur.id) || null; };
   win.webContents.setWindowOpenHandler(({ frameName }) => {
@@ -74,7 +83,8 @@ function createWindow() {
   });
   win.on('closed', () => app.quit());
   win.on('close', e => {
-    if (win.__dirtyChecked) return;
+    // if the editor page has crashed it cannot answer, so let the window close
+    if (win.__dirtyChecked || win.webContents.isCrashed()) return;
     e.preventDefault();
     win.webContents.send('want-close');
   });
@@ -101,12 +111,37 @@ app.whenReady().then(() => {
 });
 app.on('window-all-closed', () => app.quit());
 // never leave FFmpeg running in the background after the app closes
-app.on('will-quit', () => {
+function killChildren() {
   const kill = p => { try { p && p.kill('SIGKILL'); } catch {} };
-  if (job) kill(job.p);
+  if (job) { kill(job.p); job = null; }
   for (const r of readers.values()) kill(r.p);
   for (const r of grays.values()) kill(r.p);
-  for (const p of procs.values()) kill(p);
+  readers.clear(); grays.clear();
+}
+app.on('will-quit', () => {
+  killChildren();
+  for (const p of procs.values()) { try { p.kill('SIGKILL'); } catch {} }
+});
+function logCrash(msg) {
+  try { fs.appendFileSync(path.join(app.getPath('userData'), 'errores.log'), new Date().toISOString() + ' ' + msg + ' mem=' + JSON.stringify(process.getSystemMemoryInfo()) + '\n'); } catch {}
+}
+
+/* ---------- automatic copy of the project, so a crash or power cut loses almost nothing ---------- */
+const autosaveFile = () => path.join(app.getPath('userData'), 'autoguardado.mvs');
+ipcMain.handle('autosave-write', (_e, json) => {
+  try { const f = autosaveFile(), tmp = f + '.tmp'; fs.writeFileSync(tmp, json, 'utf8'); fs.renameSync(tmp, f); return true; } catch { return false; }
+});
+ipcMain.handle('autosave-clear', () => { try { fs.unlinkSync(autosaveFile()); } catch {} return true; });
+ipcMain.handle('autosave-check', async (_e, afterCrash) => {
+  let data, when;
+  try { data = fs.readFileSync(autosaveFile(), 'utf8'); when = fs.statSync(autosaveFile()).mtime; } catch { return null; }
+  let name = 'Mi video'; try { name = JSON.parse(data).name || name; } catch { return null; }
+  const hora = when.toLocaleString('es-UY', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const r = await dialog.showMessageBox(win, { type: afterCrash ? 'warning' : 'question', buttons: ['Recuperar', 'Descartar'], defaultId: 0, cancelId: 0, noLink: true, title: 'MyVloggingStudio',
+    message: afterCrash ? 'El editor se cerró por un error, pero tu proyecto está a salvo.' : 'Encontré cambios sin guardar de la última vez.',
+    detail: `"${name}", guardado automáticamente el ${hora}. ¿Lo recuperás?` });
+  if (r.response === 1) { try { fs.unlinkSync(autosaveFile()); } catch {} return null; }
+  return data;
 });
 
 ipcMain.on('close-ok', () => { if (win) { win.__dirtyChecked = true; win.close(); } });
