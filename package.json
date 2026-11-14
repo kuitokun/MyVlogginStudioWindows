@@ -32,7 +32,8 @@
     },
     "directories": {
       "output": "dist"
-    }
+    },
+    "afterPack": "build/afterPack.js"
   },
   "dependencies": {
     "ffmpeg-static": "^5.2.0",
@@ -40,6 +41,7 @@
   },
   "devDependencies": {
     "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "resedit": "^1.7.2"
   }
 }
