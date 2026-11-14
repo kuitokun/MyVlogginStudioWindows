@@ -586,11 +586,8 @@ function filterStr(c){let s=FILTERS[c.filter]?.[1]||'';if(c.bright)s+=` brightne
 
 /* ---------- project ---------- */
 function newProj(){return{aspect:'16:9',bg:'#000000',video:[],text:[],audio:[],tracks:{video:1,text:1,audio:1}}}
-function seed(){
-  S.proj=newProj();const a=bgMedia(0),b=bgMedia(1);
-  S.proj.video.push({...makeVideoClip(a),out:4,fadeIn:.6,start:0},{...makeVideoClip(b),out:4.5,fadeOut:.8,start:4});
-  S.proj.text.push({...makeText(0,.3),dur:3.4,text:'Tu primer video'},{...makeText(1,4.2),dur:3.8,text:'Importá tus clips y empezá a editar'});
-  S.demo=true;
+function seed(){ // start with an empty project
+  S.proj=newProj();S.demo=false;
 }
 let SCALE=.5;
 function applyAspect(){const[w,h]=ASPECTS[S.proj.aspect];cv.width=Math.round(w*SCALE);cv.height=Math.round(h*SCALE);$('#aspectPill').textContent=S.proj.aspect}
