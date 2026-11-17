@@ -178,19 +178,54 @@ const cacheDir = () => { const d = path.join(app.getPath('userData'), 'conversio
 const running = new Map();   // out path -> promise
 const procs = new Map();     // source file -> child process
 
-function proxyArgs(kind, file, tmp, hw) {
+/* ---------- settings ---------- */
+const settingsFile = () => path.join(app.getPath('userData'), 'ajustes.json');
+const DEFAULTS = { gpu: 'auto' };
+function getSettings() { try { return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) }; } catch { return { ...DEFAULTS }; } }
+let gpuList = null;
+async function detectGPUs() {
+  if (gpuList) return gpuList;
+  let info = null;
+  try { info = await app.getGPUInfo('complete'); } catch { try { info = await app.getGPUInfo('basic'); } catch {} }
+  const devs = (info && info.gpuDevice) || [];
+  const vendor = id => id === 0x10de ? 'NVIDIA' : id === 0x1002 ? 'AMD' : id === 0x8086 ? 'Intel' : 'Otra';
+  gpuList = devs.filter(d => d.vendorId && d.vendorId !== 0x1414).map(d => ({ vendor: vendor(d.vendorId), name: d.deviceString || (vendor(d.vendorId) + ' (0x' + (d.deviceId || 0).toString(16) + ')') }));
+  return gpuList;
+}
+ipcMain.handle('settings-get', async () => ({ settings: getSettings(), gpus: await detectGPUs() }));
+ipcMain.handle('settings-set', (_e, patch) => {
+  const s = { ...getSettings(), ...patch };
+  try { fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2)); } catch {}
+  return s;
+});
+
+// ways to make the editing copy, fastest first; each falls back to the next if it fails
+async function proxyMethods() {
+  if (getSettings().gpu === 'off') return ['cpu'];
+  const g = await detectGPUs();
+  return g.some(d => d.vendor === 'NVIDIA') ? ['nvidia', 'auto', 'cpu'] : ['auto', 'cpu'];
+}
+function proxyArgs(kind, file, tmp, method) {
   if (kind === 'image') return ['-y', '-i', file, '-frames:v', '1', tmp];
   if (kind === 'audio') return ['-y', '-i', file, '-vn', '-map', '0:a:0', '-c:a', 'aac', '-b:a', '192k', '-progress', 'pipe:1', '-nostats', tmp];
+  if (method === 'nvidia') {
+    // the whole copy on the NVIDIA card: decode, shrink and encode without passing frames through the processor
+    return ['-y', '-hide_banner', '-v', 'error', '-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-i', file, '-map', '0:v:0', '-map', '0:a:0?',
+      '-vf', "scale_cuda=w='if(gte(iw,ih),-2,720)':h='if(gte(iw,ih),720,-2)':format=nv12",
+      '-c:v', 'h264_nvenc', '-preset', 'p4', '-cq', '23', '-b:v', '0', '-g', '15', '-bf', '0', '-profile:v', 'high',
+      '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
+      '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', tmp];
+  }
   // lightweight 720p editing copy; the export always reads the original file
-  return ['-y', ...(hw ? ['-hwaccel', 'auto'] : []), '-i', file, '-map', '0:v:0', '-map', '0:a:0?',
+  return ['-y', '-hide_banner', ...(method === 'auto' ? ['-hwaccel', 'auto'] : []), '-i', file, '-map', '0:v:0', '-map', '0:a:0?',
     '-vf', "scale='if(gte(iw,ih),-2,720)':'if(gte(iw,ih),720,-2)':out_color_matrix=bt709:out_range=tv,format=yuv420p",
     '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'fastdecode', '-crf', '23', '-g', '15', '-bf', '0',
     '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
     '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', tmp];
 }
-function runProxy(e, file, kind, duration, out, tmp, hw) {
+function runProxy(e, file, kind, duration, out, tmp, method) {
   return new Promise((resolve, reject) => {
-    const p = spawn(FFMPEG, proxyArgs(kind, file, tmp, hw), { windowsHide: true });
+    const p = spawn(FFMPEG, proxyArgs(kind, file, tmp, method), { windowsHide: true });
     procs.set(file, p);
     let err = '', lastSent = 0;
     p.stdout.on('data', d => {
@@ -217,11 +252,17 @@ ipcMain.handle('proxy', async (e, file, kind, duration) => {
   if (running.has(out)) return running.get(out);
   const tmp = out + '.part' + ext;
   const job = (async () => {
-    try { return await runProxy(e, file, kind, duration, out, tmp, kind === 'video'); }
-    catch (err) {
-      if (kind !== 'video' || String(err.message) === 'cancelado') throw err;
-      return await runProxy(e, file, kind, duration, out, tmp, false); // retry without hardware decoding
+    const methods = kind === 'video' ? await proxyMethods() : ['cpu'];
+    let last;
+    for (const m of methods) {
+      try { e.sender.send('proxy-method', file, m); return await runProxy(e, file, kind, duration, out, tmp, m); }
+      catch (err) {
+        if (String(err.message) === 'cancelado') throw err;
+        last = err;
+        if (m !== 'cpu') logCrash('conversion ' + m + ' failed, trying next: ' + String(err.message).slice(-400).replace(/\s+/g, ' '));
+      }
     }
+    throw last;
   })();
   running.set(out, job);
   try { return await job; } finally { running.delete(out); }

@@ -238,6 +238,7 @@ kbd{font-family:var(--f-mono);font-size:11px;background:var(--panel3);border:1px
     <input id="projName" value="Mi video" aria-label="Nombre del proyecto">
     <div class="spacer"></div>
     <div class="layouts" id="layouts" role="group" aria-label="Diseño de la pantalla"><button type="button" data-lay="edit" title="Diseño estándar" aria-label="Diseño estándar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v10M16 4v10M3 14h18"/></svg></button><button type="button" data-lay="tl" title="Línea de tiempo grande" aria-label="Línea de tiempo grande"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M6 13h7M9 16h8"/></svg></button><button type="button" data-lay="clips" title="Panel de medios grande" aria-label="Panel de medios grande"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M11 4v12M3 16h18"/><path d="M5.5 7h3M5.5 10h3"/></svg></button><button type="button" data-lay="prev" title="Vista previa grande" aria-label="Vista previa grande"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 17h18"/><path d="m10 8.5 4 2.5-4 2.5z"/></svg></button></div>
+    <button class="btn icon" id="setBtn" title="Ajustes" aria-label="Ajustes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     <button class="btn" id="openBtn" title="Abrir proyecto (Ctrl+O)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="lbltxt">Abrir</span></button>
     <button class="btn" id="saveBtn" title="Guardar proyecto (Ctrl+S)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg><span class="lbltxt">Guardar</span></button>
     <button class="btn icon" id="undoBtn" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
@@ -316,6 +317,17 @@ kbd{font-family:var(--f-mono);font-size:11px;background:var(--panel3);border:1px
 
 <div id="pool" aria-hidden="true"></div>
 
+<div class="modal" id="setModal" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="setTitle">
+    <h2 id="setTitle">Ajustes</h2>
+    <div class="f"><span>Al importar videos pesados (HEVC, 10 bits, 4K)</span>
+      <div class="seg" id="setGpu"><button type="button" data-gpu="auto">Usar la placa de video</button><button type="button" data-gpu="off">Solo el procesador</button></div>
+    </div>
+    <p id="setGpuInfo"></p>
+    <p style="font-size:12px">Esto cambia solo la copia liviana que se usa para ver y editar. El video exportado siempre sale del archivo original, con la misma calidad. Los videos que ya están convertidos no se vuelven a convertir.</p>
+    <div class="btns"><button class="btn primary" id="setClose">Listo</button></div>
+  </div>
+</div>
 <div class="modal" id="expModal" hidden>
   <div class="sheet" role="dialog" aria-labelledby="expTitle">
     <h2 id="expTitle">Exportar video</h2>
@@ -447,6 +459,20 @@ const VID=['mp4','mov','m4v','mkv','webm','avi','mts','m2ts','lrf','insv'],IMG=[
 const mediaURL=p=>'app://local/media?p='+encodeURIComponent(p);
 const pending=new Map();
 desk.onProxyProgress((file,p)=>{const it=pending.get(file);if(it){it.pct=p;renderLib()}});
+desk.onProxyMethod((file,m)=>{const it=pending.get(file);if(it){it.how=m;it.pct=0;it.t0=performance.now();renderLib()}});
+/* ---------- settings ---------- */
+async function openSettings(){
+  const {settings,gpus}=await desk.settingsGet();
+  const paint=s=>{$('#setGpu').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.gpu===s.gpu));
+    const nv=gpus.find(g=>g.vendor==='NVIDIA'),names=gpus.map(g=>g.name).join(', ')||'ninguna detectada';
+    $('#setGpuInfo').innerHTML=s.gpu==='off'?'Las copias se hacen solo con el procesador. Es más lento, pero funciona en cualquier compu.'
+      :`Placa detectada: <b>${esc(names)}</b>. `+(nv?'Con NVIDIA, la copia se hace entera en la placa y es bastante más rápida.':'Se usa la placa para leer el video y el procesador para el resto.')+' Si algo falla, cambia sola al procesador.'};
+  paint(settings);$('#setModal').hidden=false;
+  $('#setGpu').onclick=async e=>{const b=e.target.closest('[data-gpu]');if(!b)return;paint(await desk.settingsSet({gpu:b.dataset.gpu}))};
+}
+$('#setBtn').addEventListener('click',openSettings);
+$('#setClose').addEventListener('click',()=>{$('#setModal').hidden=true});
+$('#setModal').addEventListener('click',e=>{if(e.target.id==='setModal')$('#setModal').hidden=true});
 function showMediaTab(){const b=document.querySelector('.tabs [data-tab="media"]');if(b&&b.getAttribute('aria-selected')!=='true')b.click()}
 function needsProxy(kind,info){
   if(kind==='video'){if(!info.v)return false;if(Math.max(info.v.width||0,info.v.height||0)>2560)return true;const okV=['h264','vp8','vp9','av1'].includes(info.v.codec)&&/^yuvj?420p$/.test(info.v.pix_fmt);const okA=!info.a||['aac','mp3','opus','vorbis'].includes(info.a.codec);return!(okV&&okA)}
@@ -1396,7 +1422,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',
 function pendTile(p,x){
   const conv=x.stage==='convert',pct=x.pct||0;
   const el=conv&&x.t0?(performance.now()-x.t0)/1000:0,eta=conv&&pct>.02&&el>3?fmtETA(el*(1-pct)/pct):'';
-  const label=x.stage==='queue'?'En espera':x.stage==='probe'?'Analizando el archivo…':'Creando copia liviana para editar';
+  const label=x.stage==='queue'?'En espera':x.stage==='probe'?'Analizando el archivo…':'Creando copia liviana'+(x.how==='nvidia'?' con la placa NVIDIA':x.how==='auto'?' (placa de video + procesador)':x.how==='cpu'?' con el procesador':'');
   return`<div class="mitem conv" title="${esc(p)}"><div class="cn">${esc(x.name)}</div><div class="bar${conv&&pct>0?'':' ind'}"><i style="width:${(pct*100).toFixed(1)}%"></i></div><div class="cs"><span>${label}</span>${conv?`<span><b>${Math.round(pct*100)}%</b>${eta?' · quedan ~'+eta:el>3?'':' · calculando…'}</span>`:''}</div>`+
     (x.stage!=='queue'?`<button class="add" data-cancel="${esc(p)}" title="Cancelar" aria-label="Cancelar la importación de ${esc(x.name)}">×</button>`:'')+`</div>`;
 }
